@@ -1,0 +1,4 @@
+underworld3
+numpy
+matplotlib
+sympy
