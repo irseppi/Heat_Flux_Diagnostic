@@ -64,6 +64,8 @@ Because the workflow is configuration-driven, it can also be adapted for compara
 ```bash
 python main.py
 ```
+## to run in uw3 environment (inside the underworld3) --
+pixi run -e runtime python /Users/saurabhshukla/REPOSITORIES/Heat_Flux_Diagnostic/main.py
 
 ## This is the intended entry point for the refactored workflow.
 
