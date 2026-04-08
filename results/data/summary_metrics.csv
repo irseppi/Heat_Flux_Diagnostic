@@ -1,0 +1,2 @@
+planet,planet_radius_m,core_radius_m,mantle_thickness_m,gravity_m_s2,surface_temperature_K,cmb_temperature_K,density_kg_m3,thermal_expansivity_1_K,thermal_diffusivity_m2_s,thermal_conductivity_W_mK,heat_capacity_J_kgK,reference_viscosity_Pa_s,estimated_rayleigh_number
+Earth,6371008.4,3480000.0,2891008.4000000004,9.8,273.0,3600.0,3300.0,2e-05,1.1394e-06,4.7,1250.0,1.02e+21,44739846.10056228

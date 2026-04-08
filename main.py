@@ -1,21 +1,28 @@
 """
-Run the refactored Underworld3 annulus convection workflow.
+Run the annulus convection workflow with physically consistent diagnostics.
+
 """
 
 import os
 
 from config import ModelConfig
 from diagnostics import (
-    compute_nusselt_numbers,
+    bin_angular_profile,
+    boundary_tolerance,
+    compute_boundary_diagnostics,
     compute_radial_heat_flux,
+    compute_radial_temperature_profile,
     compute_rayleigh_number,
     compute_rms_velocity,
+    conductive_temperature_profile,
     evaluate_boundary_average,
     extract_boundary_flux_vs_angle,
+    normalise_profile,
     save_boundary_flux_csv,
-    save_diagnostics_csv,
-    save_nusselt_csv,
+    save_radial_profile_csv,
     save_summary_csv,
+    save_transport_csv,
+    summarise_tail,
 )
 from model import (
     configure_stokes_solver,
@@ -25,12 +32,11 @@ from model import (
     initialise_temperature,
 )
 from plotting import (
-    plot_boundary_flux_vs_angle,
-    plot_flux_timeseries,
-    plot_nusselt_timeseries,
-    plot_rms_velocity_timeseries,
-    plot_temperature_field,
-    plot_temperature_streamlines,
+    plot_integrated_heat_transport,
+    plot_normalized_boundary_flux,
+    plot_radial_temperature_profile,
+    plot_temperature_velocity_field,
+    plot_transport_evolution,
 )
 from tests import run_basic_checks
 
@@ -72,6 +78,7 @@ def main() -> None:
         velocity,
     )
 
+    tol = boundary_tolerance(config)
     elapsed_time = 0.0
     rows = []
 
@@ -84,85 +91,173 @@ def main() -> None:
         adv_diff.solve(timestep=dt, zero_init_guess=False)
         elapsed_time += dt
 
-        inner_flux = evaluate_boundary_average(mesh, total_flux, config.inner_radius)
-        outer_flux = evaluate_boundary_average(mesh, total_flux, config.outer_radius)
+        # Use conductive boundary flux for physically consistent boundary diagnostics
+        inner_flux = evaluate_boundary_average(
+            mesh, conductive_flux, config.inner_radius, tol
+        )
+        outer_flux = evaluate_boundary_average(
+            mesh, conductive_flux, config.outer_radius, tol
+        )
         vrms = compute_rms_velocity(velocity)
 
-        rows.append([step, elapsed_time, dt, inner_flux, outer_flux, vrms])
+        nu_inner, nu_outer, q_int_inner, q_int_outer = compute_boundary_diagnostics(
+            inner_flux,
+            outer_flux,
+            config,
+        )
+
+        rows.append(
+            {
+                "step": step,
+                "time": elapsed_time,
+                "dt": dt,
+                "inner_flux": inner_flux,
+                "outer_flux": outer_flux,
+                "nu_inner": nu_inner,
+                "nu_outer": nu_outer,
+                "q_int_inner": q_int_inner,
+                "q_int_outer": q_int_outer,
+                "vrms": vrms,
+            }
+        )
 
         if step % config.output_interval == 0:
             print(
                 f"Step {step:04d} | time = {elapsed_time:.4e} | "
-                f"dt = {dt:.4e} | vrms = {vrms:.4e}"
+                f"dt = {dt:.4e} | vrms = {vrms:.4e} | "
+                f"Nu_i = {nu_inner:.4f} | Nu_o = {nu_outer:.4f}"
             )
 
-    save_diagnostics_csv(
-        os.path.join(config.results_data_dir, "heat_flux_history.csv"),
-        rows,
+    # Tail-window statistics help diagnose whether the run is still transient
+    tail_stats = summarise_tail(rows, config.tail_fraction)
+
+    print("\nTail-window diagnostic summary")
+    print(f"  Samples in tail: {tail_stats['n_tail']}")
+    print(
+        f"  Inner flux  = {tail_stats['inner_flux_mean']:.6e} ± "
+        f"{tail_stats['inner_flux_std']:.2e}"
+    )
+    print(
+        f"  Outer flux  = {tail_stats['outer_flux_mean']:.6e} ± "
+        f"{tail_stats['outer_flux_std']:.2e}"
+    )
+    print(
+        f"  Nu_inner    = {tail_stats['nu_inner_mean']:.6e} ± "
+        f"{tail_stats['nu_inner_std']:.2e}"
+    )
+    print(
+        f"  Nu_outer    = {tail_stats['nu_outer_mean']:.6e} ± "
+        f"{tail_stats['nu_outer_std']:.2e}"
+    )
+    print(
+        f"  Q_inner     = {tail_stats['q_int_inner_mean']:.6e} ± "
+        f"{tail_stats['q_int_inner_std']:.2e}"
+    )
+    print(
+        f"  Q_outer     = {tail_stats['q_int_outer_mean']:.6e} ± "
+        f"{tail_stats['q_int_outer_std']:.2e}"
+    )
+    print(
+        f"  VRMS        = {tail_stats['vrms_mean']:.6e} ± "
+        f"{tail_stats['vrms_std']:.2e}"
     )
 
-    nusselt_rows = compute_nusselt_numbers(rows, config)
-    save_nusselt_csv(
-        os.path.join(config.results_data_dir, "nusselt_history.csv"),
-        nusselt_rows,
+    save_transport_csv(
+        os.path.join(config.results_data_dir, "transport_history.csv"),
+        rows,
     )
 
     save_summary_csv(
         os.path.join(config.results_data_dir, "summary_metrics.csv"),
         config,
         rayleigh_number,
+        tail_stats,
     )
 
-    theta_inner, flux_inner = extract_boundary_flux_vs_angle(
-        mesh, total_flux, config.inner_radius
+    # Boundary heterogeneity profiles
+    theta_inner_raw, flux_inner_raw = extract_boundary_flux_vs_angle(
+        mesh,
+        conductive_flux,
+        config.inner_radius,
+        tol,
     )
-    theta_outer, flux_outer = extract_boundary_flux_vs_angle(
-        mesh, total_flux, config.outer_radius
+    theta_outer_raw, flux_outer_raw = extract_boundary_flux_vs_angle(
+        mesh,
+        conductive_flux,
+        config.outer_radius,
+        tol,
     )
+
+    theta_inner, flux_inner = bin_angular_profile(
+        theta_inner_raw,
+        flux_inner_raw,
+        config.angular_bins,
+    )
+    theta_outer, flux_outer = bin_angular_profile(
+        theta_outer_raw,
+        flux_outer_raw,
+        config.angular_bins,
+    )
+
+    flux_inner_norm = normalise_profile(flux_inner)
+    flux_outer_norm = normalise_profile(flux_outer)
 
     save_boundary_flux_csv(
         os.path.join(config.results_data_dir, "inner_flux_vs_angle.csv"),
         theta_inner,
         flux_inner,
+        flux_inner_norm,
     )
     save_boundary_flux_csv(
         os.path.join(config.results_data_dir, "outer_flux_vs_angle.csv"),
         theta_outer,
         flux_outer,
+        flux_outer_norm,
     )
 
-    plot_flux_timeseries(
-        rows,
-        save_path=os.path.join(config.results_figure_dir, "heat_flux_timeseries.png"),
-    )
-    plot_nusselt_timeseries(
-        nusselt_rows,
-        save_path=os.path.join(config.results_figure_dir, "nusselt_timeseries.png"),
-    )
-    plot_rms_velocity_timeseries(
-        rows,
-        save_path=os.path.join(config.results_figure_dir, "rms_velocity_timeseries.png"),
-    )
-    plot_boundary_flux_vs_angle(
-        theta_inner,
-        flux_inner,
-        "Inner boundary heat flux vs angle",
-        save_path=os.path.join(config.results_figure_dir, "inner_flux_vs_angle.png"),
-    )
-    plot_boundary_flux_vs_angle(
-        theta_outer,
-        flux_outer,
-        "Outer boundary heat flux vs angle",
-        save_path=os.path.join(config.results_figure_dir, "outer_flux_vs_angle.png"),
-    )
-    plot_temperature_field(
+    # Radial mean temperature profile
+    radius, temp_mean = compute_radial_temperature_profile(
+        mesh,
         temperature,
-        save_path=os.path.join(config.results_figure_dir, "temperature_field.png"),
+        config.radial_bins,
     )
-    plot_temperature_streamlines(
+    temp_cond = conductive_temperature_profile(radius, config)
+
+    save_radial_profile_csv(
+        os.path.join(config.results_data_dir, "radial_temperature_profile.csv"),
+        radius,
+        temp_mean,
+        temp_cond,
+    )
+
+    # Final figure set: only the five strongest figures
+    plot_temperature_velocity_field(
         temperature,
         velocity,
-        save_path=os.path.join(config.results_figure_dir, "temperature_streamlines.png"),
+        save_path=os.path.join(config.results_figure_dir, "figure_1_temperature_velocity.png"),
+    )
+    plot_transport_evolution(
+        rows,
+        tail_fraction=config.tail_fraction,
+        save_path=os.path.join(config.results_figure_dir, "figure_2_transport_evolution.png"),
+    )
+    plot_integrated_heat_transport(
+        rows,
+        tail_fraction=config.tail_fraction,
+        save_path=os.path.join(config.results_figure_dir, "figure_3_heat_budget.png"),
+    )
+    plot_normalized_boundary_flux(
+        theta_inner,
+        flux_inner_norm,
+        theta_outer,
+        flux_outer_norm,
+        save_path=os.path.join(config.results_figure_dir, "figure_4_boundary_heterogeneity.png"),
+    )
+    plot_radial_temperature_profile(
+        radius,
+        temp_mean,
+        temp_cond,
+        save_path=os.path.join(config.results_figure_dir, "figure_5_radial_temperature_profile.png"),
     )
 
 

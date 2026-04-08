@@ -1,5 +1,6 @@
 """
-Configuration settings for the Underworld3 Earth-like annulus convection model.
+Configuration settings for the Underworld3 annulus convection model.
+
 """
 
 from dataclasses import dataclass, field
@@ -28,12 +29,10 @@ class EarthConfig:
 
     @property
     def mantle_thickness_m(self) -> float:
-        """Return mantle thickness in meters."""
         return self.planet_radius_m - self.core_radius_m
 
     @property
     def delta_temperature_K(self) -> float:
-        """Return the thermal contrast across the shell."""
         return self.cmb_temperature_K - self.surface_temperature_K
 
 
@@ -43,31 +42,45 @@ class ModelConfig:
 
     earth: EarthConfig = field(default_factory=EarthConfig)
 
-    # Nondimensional annulus benchmark geometry
+    # Nondimensional annulus geometry
     inner_radius: float = 0.55
     outer_radius: float = 1.0
-    mesh_resolution: int = 8
+    mesh_resolution: int = 20
     qdegree: int = 3
 
-    # Nondimensional thermal BCs
+    # Thermal boundary conditions
     temperature_inner: float = 1.0
     temperature_outer: float = 0.0
 
-    # Constant-viscosity baseline, matching the notebook spirit
+    # Baseline rheology / diffusivity
     viscosity: float = 1.0
     diffusivity: float = 1.0
 
-    # Small thermal perturbation to seed convection
-    perturbation_amplitude: float = 0.05
-    perturbation_wavenumber: int = 3
+    # Thermal perturbation
+    perturbation_amplitude: float = 0.03
+    perturbation_wavenumber: int = 4
 
     # Runtime
-    max_steps: int = 200
-    output_interval: int = 10
+    max_steps: int = 1200
+    output_interval: int = 25
     timestep_safety: float = 0.25
-    max_dt: float = 1.0e-3
+    max_dt: float = 5.0e-4
     min_dt: float = 1.0e-6
 
-    # Outputs in the project folder
+    # Diagnostics controls
+    angular_bins: int = 72
+    radial_bins: int = 100
+    tail_fraction: float = 0.2
+    boundary_tolerance_factor: float = 0.60
+
+    # Output directories
     results_data_dir: str = str(PROJECT_ROOT / "results" / "data")
     results_figure_dir: str = str(PROJECT_ROOT / "results" / "figures")
+
+    @property
+    def shell_thickness(self) -> float:
+        return self.outer_radius - self.inner_radius
+
+    @property
+    def cell_size(self) -> float:
+        return self.shell_thickness / self.mesh_resolution
