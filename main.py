@@ -234,32 +234,46 @@ def main() -> None:
     plot_temperature_velocity_field(
         temperature,
         velocity,
-        save_path=os.path.join(config.results_figure_dir, "figure_1_temperature_velocity.png"),
+        save_path=os.path.join(
+            config.results_figure_dir,
+            "figure_1_temperature_velocity.png",
+        ),
     )
     plot_transport_evolution(
         rows,
         tail_fraction=config.tail_fraction,
-        save_path=os.path.join(config.results_figure_dir, "figure_2_transport_evolution.png"),
+        save_path=os.path.join(
+            config.results_figure_dir, 
+            "figure_2_transport_evolution.png"
+        ),
     )
     plot_integrated_heat_transport(
         rows,
         tail_fraction=config.tail_fraction,
-        save_path=os.path.join(config.results_figure_dir, "figure_3_heat_budget.png"),
+        save_path=os.path.join(
+            config.results_figure_dir, 
+            "figure_3_heat_budget.png"
+        ),
     )
     plot_normalized_boundary_flux(
         theta_inner,
         flux_inner_norm,
         theta_outer,
         flux_outer_norm,
-        save_path=os.path.join(config.results_figure_dir, "figure_4_boundary_heterogeneity.png"),
+        save_path=os.path.join(
+            config.results_figure_dir, 
+            "figure_4_boundary_heterogeneity.png"
+        ),
     )
     plot_radial_temperature_profile(
         radius,
         temp_mean,
         temp_cond,
-        save_path=os.path.join(config.results_figure_dir, "figure_5_radial_temperature_profile.png"),
+        save_path=os.path.join(
+            config.results_figure_dir, 
+            "figure_5_radial_temperature_profile.png"
+        ),
     )
-
 
 if __name__ == "__main__":
     main()
