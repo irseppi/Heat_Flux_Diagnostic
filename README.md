@@ -72,7 +72,8 @@ The workflow is organized into separate modules with distinct responsibilities:
 - `plotting.py` — plotting and visualization utilities
 - `tests.py` — lightweight validation and assertion-based checks
 - `main.py` — primary execution entry point
-
+- `run_tests.py`- runs the project's built-in checks and clearly shows whether everything is working or if any test has failed.
+  
 A `ModelConfig` dataclass is used to group model parameters into a single structured object, reducing ambiguity in function interfaces and improving parameter handling.
 
 ---
