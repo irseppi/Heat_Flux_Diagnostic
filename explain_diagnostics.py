@@ -315,18 +315,18 @@ def select_summary_metrics(dataframe: pd.DataFrame) -> pd.Series:
 
     preferred_order = [
         "estimated_rayleigh_number",
-        "reference_viscosity_Pa_s",
-        "thermal_diffusivity_m2_s",
-        "thermal_conductivity_W_mK",
-        "thermal_expansivity_1_K",
-        "gravity_m_s2",
-        "density_kg_m3",
+        "reference_viscosity_Pa*s",
+        "thermal_diffusivity_m2/s",
+        "thermal_conductivity_W/mK",
+        "thermal_expansivity_1/K",
+        "gravity_m/s2",
+        "density_kg/m3",
         "surface_temperature_K",
         "cmb_temperature_K",
         "planet_radius_m",
         "core_radius_m",
         "mantle_thickness_m",
-        "heat_capacity_J_kgK",
+        "heat_capacity_J/kgK",
     ]
 
     selected = []
